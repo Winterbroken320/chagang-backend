@@ -69,7 +69,16 @@ async def summary():
         "recent_apps": [r[0] for r in recent],
         "sessions": sessions
     }
-
+@app.get("/logs")
+async def get_logs(token: str = None):
+    if token != AUTH_TOKEN:
+        raise HTTPException(401, "Unauthorized")
+    conn = sqlite3.connect(str(DB_PATH))
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM records ORDER BY id DESC")
+    rows = cur.fetchall()
+    conn.close()
+    return {"logs": [{"id": r[0], "app_name": r[1], "event": r[2], "timestamp": r[3]} for r in rows]}
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
     uvicorn.run(app, host="0.0.0.0", port=8000)
