@@ -83,17 +83,18 @@ async def get_logs(token: str = None):
     return {"logs": [{"id": r[0], "app_name": r[1], "event": r[2], "timestamp": r[3]} for r in rows]}
 
 # ===== MCP端点 =====
-def check_on_wife_internal():
+def check_on_wife_internal(limit=20):
     """内部查岗函数"""
     try:
         conn = sqlite3.connect(str(DB_PATH))
         cur = conn.cursor()
-        cur.execute("SELECT app_name, event, timestamp FROM records ORDER BY id DESC LIMIT 5")
+        cur.execute("SELECT app_name, event, timestamp FROM records ORDER BY id DESC LIMIT ?", (limit,))
         recent = cur.fetchall()
         cur.execute("SELECT app_name, event, timestamp FROM records ORDER BY id ASC")
         rows = cur.fetchall()
         conn.close()
         
+        # 统计每个app的使用时长
         sessions, opens = {}, {}
         for r in rows:
             app, ev, ts = r
@@ -104,13 +105,32 @@ def check_on_wife_internal():
                 sessions[app] = sessions.get(app, 0) + gap
                 del opens[app]
         
-        apps = [r[0] for r in recent]
-        lines = [f"最近打开：{', '.join(apps[:5])}" if apps else "暂无记录"]
+        # 显示最近记录（含具体时间）
+        lines = []
+        if recent:
+            lines.append(f"最近{len(recent)}条记录：")
+            for app, ev, ts in recent:
+                try:
+                    t = datetime.fromisoformat(ts)
+                    time_str = t.strftime("%m-%d %H:%M")
+                except:
+                    time_str = ts
+                event_cn = "打开" if ev == "open" else "关闭"
+                lines.append(f"  {time_str} {app} {event_cn}")
+        else:
+            lines.append("暂无记录")
         
+        # 显示使用时长统计
         if sessions:
+            lines.append("")
+            lines.append("使用时长：")
             for app_name, secs in sorted(sessions.items(), key=lambda x: x[1], reverse=True):
-                m, s = divmod(secs, 60)
-                lines.append(f"  {app_name}: {m}分{s}秒")
+                h, rem = divmod(secs, 3600)
+                m, s = divmod(rem, 60)
+                if h > 0:
+                    lines.append(f"  {app_name}: {h}小时{m}分{s}秒")
+                else:
+                    lines.append(f"  {app_name}: {m}分{s}秒")
         
         return "\n".join(lines)
     except Exception as e:
@@ -130,7 +150,7 @@ TOOLS = [
 ]
 
 FUNCS = {
-    "check_on_wife": lambda **kwargs: check_on_wife_internal()
+    "check_on_wife": lambda **kwargs: check_on_wife_internal(**kwargs)
 }
 
 @app.post("/mcp")
