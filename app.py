@@ -8,7 +8,7 @@ import uvicorn
 
 BASE_DIR = Path(__file__).parent
 DB_PATH = BASE_DIR / "records.db"
-JST = timedelta(hours=9)
+CST = timedelta(hours=8)  # 北京时间UTC+8
 AUTH_TOKEN = os.environ.get("AUTH_TOKEN", "changeme")
 
 def init_db():
@@ -105,13 +105,13 @@ def check_on_wife_internal(limit=20):
                 sessions[app] = sessions.get(app, 0) + gap
                 del opens[app]
         
-        # 显示最近记录（含具体时间）
+        # 显示最近记录（含具体时间，转换为北京时间）
         lines = []
         if recent:
             lines.append(f"最近{len(recent)}条记录：")
             for app, ev, ts in recent:
                 try:
-                    t = datetime.fromisoformat(ts)
+                    t = datetime.fromisoformat(ts) + CST  # 转换为北京时间
                     time_str = t.strftime("%m-%d %H:%M")
                 except:
                     time_str = ts
